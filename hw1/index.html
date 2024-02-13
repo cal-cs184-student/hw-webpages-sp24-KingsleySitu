@@ -1,7 +1,286 @@
-<html>
-	<head>
-	</head>
-	<body>
-		Homework 1 index.html here
-	</body>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<style>
+  body {
+    padding: 100px;
+    width: 1000px;
+    margin: auto;
+    text-align: left;
+    font-weight: 300;
+    font-family: 'Open Sans', sans-serif;
+    color: #121212;
+  }
+  h1, h2, h3, h4 {
+    font-family: 'Source Sans Pro', sans-serif;
+  }
+</style>
+<title>CS 184/284A Rasterizer</title>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link href="https://fonts.googleapis.com/css?family=Open+Sans|Source+Sans+Pro" rel="stylesheet">
+</head>
+
+
+<body>
+
+<h1 align="middle">CS 184/284A: Computer Graphics and Imaging, Spring 2024</h1>
+<h1 align="middle">Homework 1: Rasterizer</h1>
+<h2 align="middle">Kingsley Situ, Mengjun Wen</h2>
+
+<br><br>
+
+<div>
+
+<h2 align="middle">Overview</h2>
+<p>
+  In this homework, we implemented a rasterizer which could render images from SVG files.
+  We developed three key functionalities in this project - supersampling, barycentric coordinate and texture mapping.
+  Supersampling enhances rendering quality by averaging multiple samples within each pixel to smooth out jagged edges.
+  Barycentric coordinate interpolation enables gradient coloring and smooth transitions.
+  We utilize mipmaps to optimize texture details based on distance when texture mapping, and bilinear interpolation to ensure smooth transitions between texels.
+  Implementing these features was both challenging and rewarding.
+  The satisfaction of seeing the enhanced visual results and the expanded creative possibilities was truly fulfilling.
+</p>
+
+<h2 align="middle">Section I: Rasterization</h2>
+
+<h3 align="middle">Part 1: Rasterizing single-color triangles</h3>
+
+  <ul>
+    <li>
+      Walk through how you rasterize triangles in your own words?
+      <ol>
+        <li>
+          Compute the Bounding Box:
+          The first step is to compute the axis-aligned bounding box of the triangle. This is the smallest rectangle that completely encloses the triangle. It is defined by finding the minimum and maximum ‘x’ and ‘y’’ values among the triangle's three vertices. It  helps to limit the area that needs to be iterated over, optimizing the rasterization process by avoiding unnecessary checks outside the triangle.
+        </li>
+        <li>
+          Iterate Over Each Pixel Within the Bounding Box:
+          The next step involves iterating over each pixel that lies within the bounding box. This is done by looping through each ‘x’ and ‘y’ coordinate within this box. Each loop iteration represents a potential pixel on the screen that might be part of the triangle.
+        </li>
+        <li>
+          Sample at the Center of Each Pixel:
+          For each pixel identified in the loop, a sample point is determined at the center of the pixel. This is achieved by adding .5 to both the ‘x’ and ‘y’ coordinates of the pixel's top-left corner.
+        </li>
+        <li>
+          Check if the Sample Point is Inside the Triangle:
+          The `point_in_triangle` helper function is called with the sample point's coordinates along with the coordinates of the triangle's vertices. This function calculates whether the sample point lies within the triangle by using barycentric coordinates. If the point is found to be inside the triangle, it implies that the pixel should be part of the representation of the triangle on the display.
+        </li>
+        <li>
+          Fill the Pixel:
+          If the sample point is inside the triangle, the corresponding pixel is "filled" with the specified color. The `fill_pixel` function is assumed to handle this operation.
+        </li>
+      </ol>
+    </li>
+
+    <li>
+      Explain how your algorithm is no worse than one that checks each sample within the bounding box of the triangle.
+      <ol>
+        <li>
+          Reduced Area of Consideration:
+          By calculating the bounding box of the triangle and only considering the pixels within this box, the algorithm significantly reduces the number of pixels it needs to evaluate. This is because the bounding box is the smallest rectangle that can contain the triangle, which eliminates the need to check pixels that are clearly outside the triangle's area.
+        </li>
+        <li>
+          Sampling at the Pixel's Center:
+          Sampling at the center of each pixel for the inside-triangle check is a precise method that balances performance and accuracy. This approach ensures that if any part of a pixel is within the triangle, the pixel is likely to be filled, which is particularly important for pixels on the edges of the triangle.
+        </li>
+        <li>
+          Efficiency in Calculation:
+          The use of barycentric coordinates for the point-in-triangle test is mathematically efficient and reduces computational overhead compared to other geometric methods (like checking on which side of the edge the point lies for all three edges of the triangle). Barycentric coordinates allow for a single calculation per point to determine its inclusion within the triangle.
+        </li>
+      </ol>
+    </li>
+
+    <li>
+      Show a png screenshot of basic/test4.svg with the default viewing parameters and with the pixel inspector centered on an interesting part of the scene.
+      <div align="middle">
+        <img src="images/task1.png" align="middle" width="400px"/>
+      </div>
+    </li>
+  </ul>
+
+<h3 align="middle">Part 2: Antialiasing triangles</h3>
+
+  <ul>
+    <li>
+      Walk through your supersampling algorithm and data structures. Why is supersampling useful? What modifications did you make to the rasterization pipeline in the process? Explain how you used supersampling to antialias your triangles.
+      <p>
+        Supersampling is useful because it reduces aliasing (jagged edges) in rasterized images by sampling each pixel multiple times at a higher resolution and then averaging those samples to produce the final color of each pixel. It enhances the visual quality by antialiasing, which smoothes the edges of rendered triangles. This technique is particularly useful for improving the visual quality of rendered images, making edges appear smoother and more natural.
+        We modified the sample_buffer to accommodate multiple samples per pixel, based on the sample_rate. The sample_rate dictates how many times each pixel is sampled. This buffer is resized dynamically to match the dimensions of the framebuffer and the current supersampling rate. The fill_pixel function was modified to operate on the rgb_framebuffer_target directly. For supersampling, we adapted the logic within rasterize_triangle to fill the sample_buffer with color samples for each supersample of the pixels covered by a triangle. We implemented supersampling in the rasterize_triangle function by adjusting it to iterate over each pixel and its supersamples within the bounding box of the triangle. For each supersample, you checked if it lies within the triangle using the point_in_triangle function and updated the sample_buffer accordingly. In the resolve_to_framebuffer function, you aggregated the colors of the supersamples for each pixel, averaged them, and wrote the resulting color to the rgb_framebuffer_target. This step effectively downsamples the supersampled image to the target resolution, applying antialiasing by averaging the supersamples’ colors, which results in a blurred line effect on the edges. In conclusion, increasing sample density and color averaging.
+      </p>
+    </li>
+
+    <li>
+      Show png screenshots of basic/test4.svg with the default viewing parameters and sample rates 1, 4, and 16 to compare them side-by-side. Position the pixel inspector over an area that showcases the effect dramatically; for example, a very skinny triangle corner. Explain why these results are observed.
+      <p>
+        Supersampling increases sub-pixel accuracy. More samples capture more information about what fraction of a pixel is covered by the triangle. By averaging multiple samples, the color of each pixel becomes a blend of the samples within it. This can create a gradient effect that smoothens the transition between different colors or between a shape and its background. With more samples, the aliasing effect (caused by the discrete nature of pixel grids) is reduced. The higher the number of samples, the better the approximation of the continuous triangle edge.
+      </p>
+      <div align="middle">
+        <table style="width=100%">
+          <tr>
+            <td>
+              <img src="images/task2-1.png" align="middle" width="400px"/>
+              <figcaption align="middle">Sample Rate 1</figcaption>
+            </td>
+            <td>
+              <img src="images/task2-4.png" align="middle" width="400px"/>
+              <figcaption align="middle">Sample Rate 4</figcaption>
+            </td>
+          </tr>
+          <br>
+          <tr>
+            <td>
+              <img src="images/task2-9.png" align="middle" width="400px"/>
+              <figcaption align="middle">Sample Rate 9</figcaption>
+            </td>
+            <td>
+              <img src="images/task2-16.png" align="middle" width="400px"/>
+              <figcaption align="middle">Sample Rate 16</figcaption>
+            </td>
+          </tr>
+        </table>
+      </div>
+    </li>
+  </ul>
+
+<h3 align="middle">Part 3: Transforms</h3>
+
+  <ul>
+    <li>
+      Create an updated version of svg/transforms/robot.svg with cubeman doing something more interesting, like waving or running. Feel free to change his colors or proportions to suit your creativity. Save your svg file as my_robot.svg in your docs/ directory and show a png screenshot of your rendered drawing in your write-up. Explain what you were trying to do with cubeman in words.
+      <p>
+        We simply changed the color of cubeman’s arms and legs to black as well as his body to be in gold and purple. Additionally, We adjusted the upper body pose via adding rotate() to his arms.
+      </p>
+      <div align="middle">
+        <img src="images/task3.png" align="middle" width="400px"/>
+      </div>
+    </li>
+  </ul>
+
+<h2 align="middle">Section II: Sampling</h2>
+
+<h3 align="middle">Part 4: Barycentric coordinates</h3>
+
+  <ul>
+    <li>
+      Explain barycentric coordinates in your own words and use an image to aid you in your explanation. One idea is to use a svg file that plots a single triangle with one red, one green, and one blue vertex, which should produce a smoothly blended color triangle.
+      <p>
+        Barycentric coordinates are a way to express the position of any point within a triangle as a combination of the triangle's three vertices. Imagine that each vertex of the triangle is a source that emits a unique color: red, green, and blue, respectively. Barycentric coordinates tell us how much each vertex's color should contribute to the color of any point inside the triangle. Here is an example image. Each vertex of the triangle represents 100% influence of one color—red, green, or blue. Any point inside the triangle can be represented as a mix of these three colors. The closer the point is to a vertex, the more it is influenced by that vertex's color. The barycentric coordinates are like weights. They add up to 1 (or 100%) and represent the proportion of each vertex's influence on the point. For example, if a point inside the triangle has barycentric coordinates (0.2, 0.5, 0.3), it means that the point's color is a mix of 20% of the red vertex's color, 50% of the green vertex's color, and 30% of the blue vertex's color.
+      </p>
+      <div align="middle">
+        <img src="images/task4-1.png" align="middle" width="400px"/>
+      </div>
+    </li>
+    <li>
+      Show a png screenshot of svg/basic/test7.svg with default viewing parameters and sample rate 1. If you make any additional images with color gradients, include them.
+      <div align="middle">
+        <img src="images/task4-2.png" align="middle" width="400px"/>
+      </div>
+    </li>
+  </ul>
+
+<h3 align="middle">Part 5: "Pixel sampling" for texture mapping</h3>
+
+  <ul>
+    <li>
+      Explain pixel sampling in your own words and describe how you implemented it to perform texture mapping. Briefly discuss the two different pixel sampling methods, nearest and bilinear.
+      <p>
+        Pixel sampling is the process by which we determine the color value for a pixel based on a texture map. When rendering a textured object, we have to decide how to translate the continuous texture data onto the discrete pixels of the screen.
+        Nearest Neighbor Sampling is the simplest form of texture sampling. For a given point on the texture, we simply choose the color of the nearest texel (texture pixel). In the implementation, this is done by scaling the UV coordinates (which range from 0 to 1) to the dimensions of the texture and rounding to the nearest integer to get the indices of the nearest texel. The result is a color value that is directly taken from the closest texel without any blending, which can result in a pixelated or "blocky" appearance when the texture is magnified. Bilinear Sampling is more advanced and produces smoother results than nearest neighbor sampling. It works by taking the closest four texels to the given point and calculating the weighted average of their colors based on their proximity to the point. In the implementation, we interpolate between these texels on the x-axis and y-axis separately (linear interpolation), and then blend these two results to get the final color.
+        In the rasterize_textured_triangle function, texture mapping is performed by first determining which pixels within the triangle need to be rendered. For each such pixel, its barycentric coordinates relative to the triangle's vertices are calculated. These coordinates are used to interpolate the UV coordinates across the triangle, giving us the corresponding point on the texture map for each pixel. The SampleParams struct is filled with these interpolated UV coordinates along with the chosen pixel sampling method.
+      </p>
+    </li>
+    <li>
+      <div align="middle">
+        <table style="width=100%">
+          <tr>
+            <td>
+              <img src="images/task5-n-1.png" align="middle" width="400px"/>
+              <figcaption align="middle">Sample Rate 1 - nearest</figcaption>
+            </td>
+            <td>
+              <img src="images/task5-n-16.png" align="middle" width="400px"/>
+              <figcaption align="middle">Sample Rate 16 - nearest</figcaption>
+            </td>
+          </tr>
+          <br>
+          <tr>
+            <td>
+              <img src="images/task5-b-1.png" align="middle" width="400px"/>
+              <figcaption align="middle">Sample Rate 1 - bilinear</figcaption>
+            </td>
+            <td>
+              <img src="images/task5-b-16.png" align="middle" width="400px"/>
+              <figcaption align="middle">Sample Rate 16 - bilinear</figcaption>
+            </td>
+          </tr>
+        </table>
+      </div>
+    </li>
+    <li>
+      Comment on the relative differences. Discuss when there will be a large difference between the two methods and why.
+      <p>
+        The differences between these two sampling methods become more pronounced in situations where there are high contrasts or detailed features in the texture. For textures that contain fine lines or sharp boundaries, nearest neighbor sampling may preserve these features at the cost of overall image smoothness. In contrast, bilinear sampling can blur these details but will generally provide a more visually appealing result when the texture is viewed up close or is stretched.
+        In terms of the reasons, Nearest neighbor sampling selects the closest texel's color without any interpolation. This is a very fast method but does not take into account the colors of surrounding texels, leading to a less accurate representation of the texture, especially at larger scales. While bilinear sampling calculates the weighted average of the four closest texels. This process takes into account the distance of the sample point from each of these texels, which leads to a more continuous and smooth color transition.
+      </p>
+    </li>
+  </ul>
+
+<h3 align="middle">Part 6: "Level sampling" with mipmaps for texture mapping</h3>
+
+  <ul>
+    <li>
+      Explain level sampling in your own words and describe how you implemented it for texture mapping.
+      <p>
+        Level sampling is a texture sampling technique to handle different levels of texture detail. 
+        This is relevant  in scenarios where a textured surface may appear at various distances from the camera, thus requiring different levels of texture detail to optimize both performance and visual quality. 
+        Fundamentally, when implementing level sampling, we first generate a mipmap sequence. 
+        Then, we calculate the appropriate mipmap level based on the size of the texture on screen. 
+        We modified 'Texture::get_level' by using the formula in class to get the mipmap level. 
+        Finally, we implemented 'Texture::sample'.
+        It selects the sampling method according to the level sampling mode and pixel sampling mode, and implement different logic for nearest neighbor sampling and bilinear sampling.
+      </p>
+    </li>
+
+    <li>
+      You can now adjust your sampling technique by selecting pixel sampling, level sampling, or the number of samples per pixel. Describe the tradeoffs between speed, memory usage, and antialiasing power between the three various techniques.
+      <p>
+        Each method has its strengths and weaknesses depending on the application and desired outcomes.
+        Pixel sampling directly maps texels to pixels based on proximity, so it is fast and memory-efficient but offers poor antialiasing.
+        Supersampling delivers the highest antialiasing quality but is computationally intensive and memory-demanding, since it must compute and then average multiple samples for each pixel. It offers the best visual quality at the cost of performance and memory.
+        Level sampling strikes a balance, providing better antialiasing with moderate speed and memory use.
+      </p>
+    </li>
+
+    <li>
+      Using a png file you find yourself, show us four versions of the image, using the combinations of L_ZERO and P_NEAREST, L_ZERO and P_LINEAR, L_NEAREST and P_NEAREST, as well as L_NEAREST and P_LINEAR.
+      <div align="middle">
+        <table style="width=100%">
+          <tr>
+            <td>
+              <img src="images/task6-lz-pn.png" align="middle" width="400px"/>
+              <figcaption align="middle">L_ZERO and P_NEAREST</figcaption>
+            </td>
+            <td>
+              <img src="images/task6-lz-pl.png" align="middle" width="400px"/>
+              <figcaption align="middle">L_ZERO and P_LINEAR</figcaption>
+            </td>
+          </tr>
+          <br>
+          <tr>
+            <td>
+              <img src="images/task6-ln-pn.png" align="middle" width="400px"/>
+              <figcaption align="middle">L_NEAREST and P_NEAREST</figcaption>
+            </td>
+            <td>
+              <img src="images/task6-ln-pl.png" align="middle" width="400px"/>
+              <figcaption align="middle">L_NEAREST and P_LINEAR</figcaption>
+            </td>
+          </tr>
+        </table>
+      </div>
+    </li>
+  </ul>
+
+</body>
 </html>
