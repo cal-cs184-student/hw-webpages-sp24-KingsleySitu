@@ -366,6 +366,13 @@
 <h3>
     Show a screenshot of bump mapping on the cloth and on the sphere. Show a screenshot of displacement mapping on the sphere. Use the same texture for both renders. You can either provide your own texture or use one of the ones in the textures directory, BUT choose one that's not the default texture_2.png. Compare the two approaches and resulting renders in your own words. Compare how your the two shaders react to the sphere by changing the sphere mesh's coarseness by using -o 16 -a 16 and then -o 128 -a 128.
 </h3>
+<p>
+    Displacement mapping actually modifies the surface geometry based on texture while bump mapping only creates a illusion of depth.
+    With a coarse mesh(-o 16 -a 16), bump mapping's illusion of depth is still convincing because it primarily affects surface shading rather than geometry. 
+    However, displacement mapping is not accurately depict finer details because there aren't enough vertices to modify for detailed geometry changes. 
+    It is a simplified representation of the intended texture effects.
+    We can see the difference with a fine mesh(-o 128 -a 128), displacement mapping can truly shine with a finer mesh.
+</p>
 <div align="middle">
     <table style="width:100%">
         <tr align="center">
